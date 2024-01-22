@@ -329,15 +329,24 @@ def homepage():
     - logged in: 100 most recent messages of followed_users
     """
 
-    user = g.user
-    user_likes_msg_id = [message.id for message in user.likes ]
-    print(len(user_likes_msg_id) )
-    user_following_ids = [user.id for user in g.user.following]
-    messages_from_followers = Message.query.filter(Message.user_id.in_(user_following_ids)).limit(100).all()
 
     if g.user:
+        
+        user = g.user
+        user_following_ids = [user.id for user in g.user.following]
+        messages_from_followers = Message.query.filter(Message.user_id.in_(user_following_ids)).limit(100).all()
         messages = (messages_from_followers + g.user.messages)
-
+        if user.likes:
+            
+            
+            print(user.likes)    
+            user_likes_msg_id = [message.id for message in user.likes ]
+            print(len(user_likes_msg_id) )
+            
+            
+            return render_template('home.html', messages=messages, user_likes_msg_id=user_likes_msg_id)
+        else:
+            user_likes_msg_id=0
         return render_template('home.html', messages=messages, user_likes_msg_id=user_likes_msg_id)
 
     else:
@@ -354,9 +363,6 @@ def add_liked_msg(msg_id):
     user_likes_msg_id = [message.id for message in user.likes ]
 
 
-    print(msg_id)
-    print(user.id)
-    print(user_likes_msg_id)
     if msg_id  in user_likes_msg_id:
         Likes.query.filter_by(user_id=user.id, message_id=msg_id).delete()
         db.session.commit()
@@ -366,7 +372,6 @@ def add_liked_msg(msg_id):
         user_liked = Likes(user_id = user.id, message_id=msg_id)
         db.session.add(user_liked)
         db.session.commit()
-        print(user.likes)
         return redirect("/")
     return redirect("/")
 

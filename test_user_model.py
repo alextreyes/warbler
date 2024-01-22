@@ -42,9 +42,10 @@ class UserModelTestCase(TestCase):
         self.client = app.test_client()
 
     def test_user_model(self):
-        """Does basic model work?"""
+        """Does basic model work? and repr"""
 
         u = User(
+            id = 1,
             email="test@test.com",
             username="testuser",
             password="HASHED_PASSWORD"
@@ -52,7 +53,109 @@ class UserModelTestCase(TestCase):
 
         db.session.add(u)
         db.session.commit()
+        expected_repr = f"<User #{u.id}: {u.username}, {u.email}>"
 
         # User should have no messages & no followers
         self.assertEqual(len(u.messages), 0)
         self.assertEqual(len(u.followers), 0)
+        self.assertEqual(repr(u),expected_repr)
+
+    def test_user_model_following(self):
+        """test following uses"""
+        u1 = User(
+            id = 1,
+            email="test@test.com",
+            username="testuser",
+            password="HASHED_PASSWORD"
+        )
+        u2 = User(
+            id = 2,
+            email="2test@test.com",
+            username="testuser2",
+            password="HASHED_PASSWORD2"
+        )
+        u3 = User(
+            id = 3,
+            email="3test@test.com",
+            username="testuser3",
+            password="HASHED_PASSWORD3"
+        )
+        
+        db.session.add_all([u1,u2,u3])
+        db.session.commit()
+
+        f=Follows(user_being_followed_id= 1, user_following_id= 2)
+
+        
+
+        db.session.add(f)
+        db.session.commit()
+        self.assertIs(u2.is_following(u1),True)
+        self.assertIs(u2.is_following(u3),False)
+
+    def test_user_model_followers(self):
+        """test followers uses"""
+        u1 = User(
+            id = 1,
+            email="test@test.com",
+            username="testuser",
+            password="HASHED_PASSWORD"
+        )
+        u2 = User(
+            id = 2,
+            email="2test@test.com",
+            username="testuser2",
+            password="HASHED_PASSWORD2"
+        )
+        u3 = User(
+            id = 3,
+            email="3test@test.com",
+            username="testuser3",
+            password="HASHED_PASSWORD3"
+        )
+        
+        db.session.add_all([u1,u2,u3])
+        db.session.commit()
+
+        f=Follows(user_being_followed_id= 1, user_following_id= 2)
+        db.session.add(f)
+        db.session.commit()
+
+        self.assertIs(u1.is_followed_by(u2),True)
+        self.assertIs(u2.is_followed_by(u3),False)
+
+    def test_user_model_signup(self):
+        """test signup"""
+
+        a = User.signup( username="testuser" , email= "test@test.com", password="HASHED_PASSWORD",image_url="ola") 
+        db.session.commit() 
+
+        b = User.signup(username='testuser', email='test@test.com', password='HASHED_PASSWORD',image_url="ola")
+        db.session.commit()
+        
+        
+
+        self.assertIsInstance(a,User)
+        self.assertIsNone(b)
+        db.session.rollback()
+
+    def test_user_model_authenticate(self):
+        """test authentication"""
+        u1 = User.signup(
+            email="test@test.com",
+            username="testuser1",
+            password="HASHED_PASSWORD",
+            image_url='ola'
+        )
+        db.session.add(u1)
+        db.session.commit()
+
+        self.assertIs(User.authenticate(username='testuser1', password='HASHED_PASSWORD'), u1)
+
+        self.assertIs(User.authenticate(username='testuser1', password='HASHED_PASS'), False)
+
+        self.assertIs(User.authenticate(username='test', password='HASHED_PASS'), False)
+
+
+
+

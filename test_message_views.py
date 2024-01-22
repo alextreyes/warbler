@@ -52,7 +52,7 @@ class MessageViewTestCase(TestCase):
         db.session.commit()
 
     def test_add_message(self):
-        """Can use add a message?"""
+        """Can user add a message?"""
 
         # Since we need to change the session to mimic logging in,
         # we need to use the changing-session trick:
@@ -71,3 +71,57 @@ class MessageViewTestCase(TestCase):
 
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+    
+    def test_add_message_no_login(self):
+        "add a message with no login"
+        with self.client as c:
+            resp = c.post("/messages/new", data={"text": "Hello"}, follow_redirects=True)
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("Access unauthorized", str(resp.data))
+
+    def test_delete_message(self):
+        """test deleting a message"""
+
+        m = Message(
+            id=1,
+            text="test",
+            user_id=self.testuser.id
+        )
+        db.session.add(m)
+        db.session.commit()
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            resp = c.post("/messages/1/delete", follow_redirects=True)
+            self.assertEqual(resp.status_code, 200)
+
+            m = Message.query.get(1)
+            self.assertIsNone(m)
+
+    def test_delete_message_no_auth(self):
+        """test deleting a message with incorrect auth"""
+
+        # A second user that will try to delete the message
+        u = User.signup(username="unauthorized-user",
+                        email="testtest@test.com",
+                        password="password",
+                        image_url=None)
+        u.id = 76543
+
+        #Message is owned by testuser
+        m = Message(
+            id=1234,
+            text="a test message",
+            user_id=self.testuser.id
+        )
+        db.session.add_all([u, m])
+        db.session.commit()
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = 76543
+
+            resp = c.post("/messages/1234/delete", follow_redirects=True)
+            self.assertEqual(resp.status_code, 200)

@@ -145,6 +145,9 @@ class User(db.Model):
             password=hashed_pwd,
             image_url=image_url,
         )
+        existing_user = cls.query.filter((cls.username == username) | (cls.email == email)).first()
+        if existing_user:
+            return None
 
         db.session.add(user)
         return user
