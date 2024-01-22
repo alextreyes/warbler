@@ -4,8 +4,8 @@ from flask import Flask, render_template, request, flash, redirect, session, g, 
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
-from models import db, connect_db, User, Message
+from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
+from models import db, connect_db, User, Message, Likes
 
 CURR_USER_KEY = "curr_user"
 
@@ -116,7 +116,7 @@ def logout():
     flash(message="Successfully logged out")
     return redirect(url_for('login'))
 
-    # IMPLEMENT THIS
+    # IMPLEMENT THIS/ done
 
 
 ##############################################################################
@@ -144,7 +144,8 @@ def users_show(user_id):
     """Show user profile."""
 
     user = User.query.get_or_404(user_id)
-
+    user_likes_msg_id = [message.id for message in user.likes ]
+    print(len(user_likes_msg_id) )
     # snagging messages in order from the database;
     # user.messages won't be in order by default
     messages = (Message
@@ -153,7 +154,7 @@ def users_show(user_id):
                 .order_by(Message.timestamp.desc())
                 .limit(100)
                 .all())
-    return render_template('users/show.html', user=user, messages=messages)
+    return render_template('users/show.html', user=user, messages=messages, user_likes_msg_id=user_likes_msg_id)
 
 
 @app.route('/users/<int:user_id>/following')
@@ -213,8 +214,33 @@ def stop_following(follow_id):
 @app.route('/users/profile', methods=["GET", "POST"])
 def profile():
     """Update profile for current user."""
+    user = g.user
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    
+    form = UserEditForm()
 
-    # IMPLEMENT THIS
+
+    if form.validate_on_submit():
+        user.username=form.username.data
+        user.email=form.email.data
+        user.image_url=form.image_url.data
+        user.header_image_url=form.header_image_url.data
+        user.bio=form.bio.data
+        print(form.password.data)
+        if User.authenticate(user.username, form.password.data) == False:
+            flash(message='Invalid password')
+            return redirect('/')
+        db.session.commit()
+        return redirect(f'/users/{user.id}')
+
+        
+    
+    return render_template('/users/edit.html', form=form)
+        
+
+    # IMPLEMENT THIS/ done
 
 
 @app.route('/users/delete', methods=["POST"])
@@ -231,6 +257,15 @@ def delete_user():
     db.session.commit()
 
     return redirect("/signup")
+
+@app.route('/users/<int:user_id>/likes', methods=["GET"])
+def get_user_likes(user_id):
+
+# msg = Message.query.get(message_id)
+    user = g.user
+    liked_msg = Likes.query.get(user_id)
+    return render_template("users/liked.html", user=user)
+
 
 
 ##############################################################################
@@ -294,17 +329,46 @@ def homepage():
     - logged in: 100 most recent messages of followed_users
     """
 
-    if g.user:
-        messages = (Message
-                    .query
-                    .order_by(Message.timestamp.desc())
-                    .limit(100)
-                    .all())
+    user = g.user
+    user_likes_msg_id = [message.id for message in user.likes ]
+    print(len(user_likes_msg_id) )
+    user_following_ids = [user.id for user in g.user.following]
+    messages_from_followers = Message.query.filter(Message.user_id.in_(user_following_ids)).limit(100).all()
 
-        return render_template('home.html', messages=messages)
+    if g.user:
+        messages = (messages_from_followers + g.user.messages)
+
+        return render_template('home.html', messages=messages, user_likes_msg_id=user_likes_msg_id)
 
     else:
         return render_template('home-anon.html')
+    
+    # done
+##############################################################################
+    # liking things
+
+@app.route('/users/add_like/<int:msg_id>', methods=["POST"])
+def add_liked_msg(msg_id):
+
+    user = g.user
+    user_likes_msg_id = [message.id for message in user.likes ]
+
+
+    print(msg_id)
+    print(user.id)
+    print(user_likes_msg_id)
+    if msg_id  in user_likes_msg_id:
+        Likes.query.filter_by(user_id=user.id, message_id=msg_id).delete()
+        db.session.commit()
+        return redirect("/")
+
+    if user:
+        user_liked = Likes(user_id = user.id, message_id=msg_id)
+        db.session.add(user_liked)
+        db.session.commit()
+        print(user.likes)
+        return redirect("/")
+    return redirect("/")
 
 
 ##############################################################################
